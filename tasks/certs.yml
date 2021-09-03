@@ -7,51 +7,32 @@
 
 - name: create the organization certificate authority
   delegate_to: "{{ nebula_ca }}"
-  command: 'nebula-cert ca -name "{{ nebula_ca_name }}"'
+  command: 'nebula-cert ca -out-qr ' + nebula_ca_dir + '/ca.crt.jpg -name "{{ nebula_ca_name }}"'
   run_once: true
   args:
     chdir: "{{ nebula_ca_dir }}"
-    creates: "{{ nebula_ca_dir }}/ca.crt"
-
-- name: copy ca.crt to nodes
-  copy:
-    src: "{{ nebula_ca_dir }}/ca.crt"
-    dest: "{{ nebula_config_dir }}/ca.crt"
-    owner: nebula
-    group: nebula
-    mode: 0644
-  become_user: root
-  become: true
-  notify:
-    - restart nebula
+    creates:
+      - "{{ nebula_ca_dir }}/ca.crt"
+      - "{{ nebula_ca_dir }}/ca.crt.jpg"
 
 - name: sign certificates for nebula nodes
   delegate_to: "{{ nebula_ca }}"
-  command: "{{ 'nebula-cert sign -name ' + nebula_hostname + ' -ip ' + nebula_ip + nebula_cidr + ' -groups ' + nebula_groups }}"
+  command: "{{ 'nebula-cert sign -out-qr ' + nebula_ca_dir + '/' + nebula_hostname + '.crt.jpg -name ' + nebula_hostname + ' -ip ' + nebula_ip + nebula_cidr + ' -groups ' + nebula_groups }}"
   args:
     chdir: "{{ nebula_ca_dir }}"
-    creates: "{{ nebula_ca_dir }}/{{ nebula_hostname }}.crt"
+    creates:
+      - "{{ nebula_ca_dir }}/{{ nebula_hostname }}.crt"
+      - "{{ nebula_ca_dir }}/{{ nebula_hostname }}.crt.jpg"
+      - "{{ nebula_ca_dir }}/{{ nebula_hostname }}.key"
 
 - name: sign certificates for nebula client devices
   delegate_to: "{{ nebula_ca }}"
-  command: "{{ 'nebula-cert sign -name ' + item.nebula_hostname + ' -ip ' + item.nebula_ip + nebula_cidr + ' -groups ' + item.nebula_groups }}"
+  command: "{{ 'nebula-cert sign -out-qr ' + nebula_ca_dir + '/' + item.nebula_hostname + '.crt.jpg -name ' + item.nebula_hostname + ' -ip ' + item.nebula_ip + nebula_cidr + ' -groups ' + item.nebula_groups }}"
   args:
     chdir: "{{ nebula_ca_dir }}"
-    creates: "{{ nebula_ca_dir }}/{{ item.nebula_hostname }}.crt"
+    creates:
+      - "{{ nebula_ca_dir }}/{{ item.nebula_hostname }}.crt"
+      - "{{ nebula_ca_dir }}/{{ item.nebula_hostname }}.crt.jpg"
+      - "{{ nebula_ca_dir }}/{{ item.nebula_hostname }}.key"
   run_once: true
   loop: "{{ nebula_client_devices }}"
-
-- name: copy cert file to node
-  copy:
-    src: "{{ nebula_ca_dir }}/{{ item }}"
-    dest: "{{ nebula_config_dir }}/{{ item }}"
-    owner: nebula
-    group: nebula
-    mode: 0644
-  become_user: root
-  become: true
-  with_items:
-    - "{{ nebula_hostname }}.crt"
-    - "{{ nebula_hostname }}.key"
-  notify:
-    - restart nebula
